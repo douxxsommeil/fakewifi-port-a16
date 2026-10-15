@@ -1,0 +1,146 @@
+name: build-fakewifi-a16
+
+# Parchea la imagen WayDroid-ATV 20260717 GAPPS (LineageOS 23.2 / Android 16 QPR2)
+# con FakeWifi y publica un release con el system.img (2 partes) + los 2 APEX.
+#
+# Trigger: manual (workflow_dispatch, input version) o push de tag v*.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Tag del release a publicar (ej. v1.1.0)"
+        required: true
+        default: "v1.1.0"
+      prerelease:
+        description: "Marcar como prerelease"
+        required: false
+        default: "false"
+        type: choice
+        options: ["true", "false"]
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  STOCK_URL: https://github.com/WayDroid-ATV/waydroid-builds/releases/download/20260717/lineage-23.2-20260717-GAPPS-waydroid_x86_64-system.zip
+  STOCK_SHA256: f64a746f2ec50417ebb363ad1da1104d5cc71bb39d89ff21a264b5cacaeb006a
+  EROFS_UTILS_VER: 1.8.6
+  BT_URL: https://dl.google.com/android/repository/build-tools_r34-linux.zip
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup
+          sudo docker image prune -af || true
+          df -h /
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq liblz4-dev libfuse3-dev libselinux1-dev \
+            autoconf automake pkg-config libtool unzip wget uidmap
+          sudo ln -sf /usr/sbin/debugfs /usr/bin/debugfs || true
+          sudo ln -sf /usr/sbin/e2fsck /usr/bin/e2fsck || true
+          debugfs V=1 2>&1 | head -1 || true
+
+      - name: Build erofs-utils (pinned)
+        run: |
+          set -e
+          wget -q "https://github.com/erofs/erofs-utils/archive/refs/tags/v${EROFS_UTILS_VER}.tar.gz" -O erofs-utils.tar.gz
+          tar xzf erofs-utils.tar.gz
+          cd erofs-utils-${EROFS_UTILS_VER}
+          ./autogen.sh
+          ./configure --prefix=/usr/local >/dev/null
+          make -j"$(nproc)" >/dev/null
+          sudo make install >/dev/null
+          mkfs.erofs -V 2>&1 | head -1 || true
+          fsck.erofs -V 2>&1 | head -1 || true
+
+      - name: Fetch Android build-tools
+        run: |
+          set -e
+          wget -q "$BT_URL" -O bt.zip
+          mkdir -p ~/android-build-tools
+          unzip -q bt.zip -d ~/android-build-tools
+          echo "BUILD_TOOLS_DIR=$(echo ~/android-build-tools/android-*)" >> "$GITHUB_ENV"
+
+      - name: Download stock image
+        run: |
+          set -e
+          wget -q -c --tries=10 --waitretry=5 --timeout=60 "$STOCK_URL" -O stock-system.zip
+          echo "$(echo "$STOCK_SHA256" | cut -d' ' -f1)  stock-system.zip" | sha256sum -c -
+
+      - name: Build patched image
+        run: |
+          set -e
+          sudo -E TZ=UTC python3 scripts/build_image_a16.py \
+            --stock-zip stock-system.zip \
+            --workdir "$RUNNER_TEMP/a16work" \
+            --out-dir out \
+            --repo-root "$GITHUB_WORKSPACE"
+          df -h /
+
+      - name: Collect artifacts
+        run: |
+          set -e
+          mkdir -p release
+          cp out/system.img.part0 out/system.img.part1 out/sha256sum release/
+          cp out/apexes-new/com.android.wifi.apex out/apexes-new/com.android.tethering.apex release/
+          cp out/repack-fidelity.txt release/ 2>/dev/null || true
+          ls -la release/
+
+      - name: Upload workflow artifacts (siempre)
+        uses: actions/upload-artifact@v4
+        with:
+          name: fakewifi-a16-${{ inputs.version || github.ref_name }}
+          path: release/*
+          if-no-files-found: error
+
+      - name: Publish release
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version || github.ref_name }}
+          name: ${{ inputs.version || github.ref_name }} — fakewifi-port-a16 (WayDroid-ATV 20260717 GAPPS)
+          body: |
+            system.img EROFS reconstruida con **fidelidad total de metadata** (uid/gid,
+            SELinux labels, file capabilities, mtimes, UUID/superblock de stock) +
+            FakeWifi en los APEX com.android.wifi y com.android.tethering.
+
+            **Fixes respecto a v1.0.0**: sin `--all-root`, sin file-contexts genéricos
+            (labels desde los xattrs reales), erofs-utils 1.8.6 ambos sentidos,
+            gate automático de fidelidad (tree-diff completo) en CI.
+
+            ## Instalación
+            ```bash
+            cat system.img.part0 system.img.part1 > system.img
+            sha256sum system.img   # comparar con sha256sum
+            sudo cp system.img /etc/waydroid-extra/images/system.img
+            # vendor.img: usar el de la MISMA release 20260717 (MAINLINE)
+            sudo systemctl restart waydroid-container
+            sudo waydroid shell setprop persist.waydroid.fake_wifi '*'
+            ```
+          draft: false
+          prerelease: ${{ inputs.prerelease == 'true' }}
+          files: |
+            release/system.img.part0
+            release/system.img.part1
+            release/sha256sum
+            release/com.android.wifi.apex
+            release/com.android.tethering.apex
+            release/repack-fidelity.txt

@@ -3,7 +3,28 @@
 Si sos un agente que llega a este repo sin la conversación previa: **este archivo es tu
 punto de entrada.** Todo el contexto de la sesión de porteo vive en `vault/notes.md`.
 
-## Estado actual (cierre de sesión 2026-10-15)
+## Estado actual (actualización 2026-10-15, sesión 2 — bootloop v1.0.0)
+
+- El usuario reportó **bootloop** (pantalla de carga de LineageOS) con el
+  system.img v1.0.0. La imagen stock A16 bootea perfecto en su host.
+- Auditoría forense completa (ver git log de esta fecha): la cadena
+  FakeWifi/APEX/firmas está CORRECTA (FakeWifi byte-idéntico al A14 que
+  funcionaba, dex estructuralmente válido y con paridad de clases, AVB+APK v3
+  consistentes, apexd AOSP sin checks extra para APEX de fábrica).
+  Lo que SÍ quedó dañado por el repack EROFS de la v1.0.0: uid/gid
+  (`--all-root`, 491 archivos), capabilities (11 archivos), timestamps
+  (forzados a 2024), labels vía file-contexts genérico, UUID.
+- **Pipeline nuevo**: `scripts/build_image_a16.py` (master) + `tree_manifest.py`
+  + `manifest_diff.py`. Extrae como root con `--xattrs`, repackea con
+  erofs-utils >= 1.8.6 SIN `--all-root`/`--file-contexts`, y gatea el build con
+  un tree-diff completo (contenido+metadata+xattrs: solo los 2 APEX pueden
+  diferir). Los jars parcheados están vendidos en `prebuilt/` (no hace falta
+  baksmali en CI). CI: `.github/workflows/build.yml` (workflow_dispatch o tag
+  v*) que baja la stock 20260717, construye, gatea y publica release.
+- Diagnóstico runtime del usuario: `DIAGNOSTICO.md` (incluye descarte de
+  vendor.img mezclado 20260302/20260717 y overlays viejos).
+
+## Estado actual (cierre de sesión 2026-10-15, sesión 1)
 
 - **fakewifi-port-a16** entregado y verificado estáticamente en el sandbox de z.ai.
   El `system.img` (1.95 GB, EROFS, LZ4) tiene los 2 APEX parchados dentro (firmados

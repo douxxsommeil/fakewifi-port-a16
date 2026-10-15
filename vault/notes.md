@@ -260,3 +260,41 @@ Si sos un agente retomando este repo:
 
 Si sos el usuario y querés instalar: leé `README.md` y corré `install.sh`
 con sudo. El script hace todo (copia + setprop + verify).
+
+---
+
+## Sesión 2 (2026-10-15, tarde) — bootloop v1.0.0: auditoría + fix + CI
+
+Reporte del usuario: la imagen v1.0.0 se queda en la pantalla de carga de
+LineageOS. La stock A16 bootea perfecto.
+
+### Qué descarté (con evidencia, no a ojo)
+
+- **Claves**: apex_pubkey == extract_public_key(fakewifi_key.pem); cert JKS ==
+  misma clave. OK.
+- **APEX zip**: payload STORED + 4096-aligned (offset 4096); esquema de firma
+  v3-only = IGUAL que el stock (el stock también es v2=false).
+- **apexd A16** (fuente AOSP main leída): no hay whitelist para APEX de
+  fábrica; la verificación es apex_pubkey embebida vs payload AVB (pasa);
+  fallos de activación no frenan el boot de apexd (sigue sin el apex).
+- **DEX**: baksmali del release parsea limpio; clases parcheadas = stock + 8
+  (FakeWifi+lambdas+IpInfo) y 0 diff en connectivity; hooks aplicados solo
+  donde correspondía. Los dex STOCK tampoco traen sección hiddenapi → no
+  existe el riesgo.
+- **FakeWifi**: byte-idéntico al A14 (que funcionó en el host del usuario).
+
+### Qué SÍ quedó dañado en el repack EROFS de la v1.0.0 (medido, 7508 inodes)
+
+- gid 2000→0 en 491 archivos (--all-root), uid en 2, caps perdidos en 11,
+  symlinks 0777 (cosmético), timestamps 2024, UUID nuevo, falta feature
+  xattr_filter. Nada de esto es claramente fatal en waydroid (sin SELinux
+  enforcing), pero la imagen no era fiel al stock.
+
+### Fix (v1.1.0)
+
+Pipeline nuevo scripts/build_image_a16.py: extracción root + xattrs reales,
+mkfs.erofs 1.8.6 sin --all-root ni --file-contexts, --preserve-mtime,
+UUID/ts de stock, y GATE de tree-diff completo (solo los 2 APEX pueden
+diferir). Jars parcheados vendidos en prebuilt/. CI en
+.github/workflows/build.yml publica el release. Diagnóstico del host en
+DIAGNOSTICO.md (vendor 20260717, overlay limpio, sha256 de la imagen en uso).

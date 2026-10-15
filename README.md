@@ -2,6 +2,16 @@
 
 > ¿Sos un asistente/agent retomando este proyecto? Empezá por [`AGENTS.md`](AGENTS.md).
 > ¿Sos un humano y querés instalarlo? Seguí [`install.sh`](install.sh) (con sudo).
+> ¿La imagen no bootea? Seguí [`DIAGNOSTICO.md`](DIAGNOSTICO.md) antes de nada.
+
+> **v1.1.0 — Repack con fidelidad total de metadata (rebuild recomendado)**
+> La v1.0.0 reconstruía el EROFS con `mkfs.erofs 1.5 --all-root` + labels
+> genéricos: se perdían uid/gid (491 archivos), capabilities (run-as, etc.)
+> y timestamps. La v1.1.0 reconstruye la imagen con extracción como root +
+> xattrs reales + `erofs-utils 1.8.6` y valida la fidelidad con un
+> tree-diff completo automático en CI. Los bootloops atribuibles a la
+> imagen deberían estar descartados; si aun así no bootea, es entorno
+> (vendor/overlay/data) — ver `DIAGNOSTICO.md`.
 
 Parche binario que **añade el fake wifi de Waydroid** (`persist.waydroid.fake_wifi`)
 a la imagen **WayDroid-ATV 20260717 GAPPS (LineageOS 23.2 / Android 16 QPR2)**, sin
