@@ -53,7 +53,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq liblz4-dev libfuse3-dev libselinux1-dev \
-            autoconf automake pkg-config libtool unzip wget uidmap
+            uuid-dev autoconf automake pkg-config libtool m4 unzip wget uidmap
           sudo ln -sf /usr/sbin/debugfs /usr/bin/debugfs || true
           sudo ln -sf /usr/sbin/e2fsck /usr/bin/e2fsck || true
           debugfs V=1 2>&1 | head -1 || true
