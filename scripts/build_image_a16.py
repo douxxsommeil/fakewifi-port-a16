@@ -105,6 +105,9 @@ def inject_into_payload(apex_dir, local_jar, in_img_path, orig_size):
     # debugfs write does NOT overwrite existing entries: rm first (A14 build.sh pattern)
     run([DEBUGFS, "-w", "-R", f"rm {in_img_path}", work])
     run([DEBUGFS, "-w", "-R", f"write {local_jar} {in_img_path}", work])
+    # e2fsprogs >= 1.47.0: write() can reuse the freed inode leaving
+    # links_count=0 -> relink explicitly so e2fsck stays clean on every version.
+    run([DEBUGFS, "-w", "-R", f"sif {in_img_path} links_count 1", work])
     # verify the write actually replaced the file
     r = run([DEBUGFS, "-R", f"stat {in_img_path}", work])
     got = None
@@ -120,7 +123,9 @@ def inject_into_payload(apex_dir, local_jar, in_img_path, orig_size):
     if gid:
         run([DEBUGFS, "-w", "-R", f"sif {in_img_path} gid {gid}", work])
     if mode:
-        run([DEBUGFS, "-w", "-R", f"sif {in_img_path} mode {mode}", work])
+        # full st_mode (type bits + perms) as DECIMAL (debugfs parses base-0)
+        full_mode = 0o100000 | (mode & 0o7777)
+        run([DEBUGFS, "-w", "-R", f"sif {in_img_path} mode {full_mode}", work])
     if selinux:
         run([DEBUGFS, "-w", "-R", f"ea_set {in_img_path} security.selinux {selinux}", work])
 
