@@ -350,8 +350,9 @@ def main():
     print("== [7/8] verification gate ==")
     run([fsck, out_img], as_root=True)
     r = subprocess.run([dump, "-s", out_img], capture_output=True, text=True, env=env)
-    if f"inode count: {inodes}" not in r.stdout:
-        raise SystemExit("FATAL: inode count mismatch after repack")
+    dump_out = r.stdout + r.stderr
+    if f"inode count: {inodes}" not in dump_out:
+        raise SystemExit(f"FATAL: inode count mismatch after repack (dump: {dump_out[:400]!r})")
     print(f"  inode count OK ({inodes})")
 
     # sha256 equality of the apexes inside the image is guaranteed by the
