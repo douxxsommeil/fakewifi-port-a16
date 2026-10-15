@@ -351,7 +351,9 @@ def main():
     run([fsck, out_img], as_root=True)
     r = subprocess.run([dump, "-s", out_img], capture_output=True, text=True, env=env)
     dump_out = r.stdout + r.stderr
-    if f"inode count: {inodes}" not in dump_out:
+    import re as _re
+    m = _re.search(r"inode count:\s+(\d+)", dump_out)
+    if not m or int(m.group(1)) != inodes:
         raise SystemExit(f"FATAL: inode count mismatch after repack (dump: {dump_out[:400]!r})")
     print(f"  inode count OK ({inodes})")
 
