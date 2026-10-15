@@ -91,9 +91,27 @@ ps -ef | grep -i waydroid | grep -v grep   # debe dar vacío
 Esto es lo que la release A16 recomienda explícitamente ("Clean install
 is recommended") y lo que borrará tu configuración previa:
 
+> [!IMPORTANT]
+> **El paso 1 — borrar `~/.local/share/waydroid` — NO es opcional.**
+> Confirmado en runtime (2026-10-16): si ese directorio sobrevive al wipe,
+> el boot queda **en bootloop en la pantalla de carga y la imagen nunca
+> llega a cargar**, aunque el system.img sea correcto (v1.1.0), el vendor
+> matchee y los overlays estén limpios. Ese dir ES la partición `/data`
+> de Android: guarda `packages.xml`, los settings de system_server y la
+> dalvik-cache de la instalación anterior (o a medio escribir por los
+> boots abortados de un bootloop). Una imagen nueva encima de ese /data
+> viejo hace crash-loopear system_server desde el primer boot — el
+> síntoma es idéntico al de una imagen rota, y por eso engaña. Borrá este
+> dir SIEMPRE que cambies de imagen o te recuperes de un bootloop.
+
 ```bash
 # 1) Data de usuario (apps instaladas, /data del Android, props persistentes)
 rm -rf ~/.local/share/waydroid
+
+# 1b) Rutas legacy de data de waydroid (de instalaciones viejas; borrarlas
+#     no cuesta nada — guía oficial de reset:
+#     github.com/waydroid/waydroid/discussions/1358)
+rm -rf ~/.share/waydroid ~/waydroid ~/.waydroid
 
 # 2) Overlays del container (APEX overrides, cfg patches, etc.)
 sudo rm -rf /var/lib/waydroid/overlay*
@@ -245,6 +263,28 @@ seguridad. Antes pedía WiFi; ahora debería pasar directo.
 
 ## 9. Si algo falla
 
+### Bootloop persiste tras re-instalar la imagen (data de usuario remanente)
+
+**Confirmado en runtime (2026-10-16).** Si re-instalás la imagen (incluso
+re-descargada, con sha256 correcto y vendor matching) y el boot SIGUE
+colgado en la pantalla de carga: el culpable casi seguro es un
+`~/.local/share/waydroid` que quedó del intento anterior (o de la
+imagen previa). Ese dir es la partición /data de Android; con data de
+otro framework (o corrupta por los boots abortados), system_server
+crash-loopea y la imagen nunca termina de cargar — por eso "reinstalar
+la imagen" no arregla nada solo. Fix rápido:
+
+```bash
+waydroid session stop
+sudo systemctl stop waydroid-container
+rm -rf ~/.local/share/waydroid ~/.share/waydroid ~/waydroid ~/.waydroid
+sudo systemctl start waydroid-container
+waydroid session start &
+```
+
+Después del boot, re-ejecutá el setprop (§ 7) porque la prop no
+sobrevive al factory-reset. Ver `DIAGNOSTICO.md` § 0.4 para el detalle.
+
 ### Boot no completa en 240s
 
 ```bash
@@ -320,7 +360,8 @@ unzip lineage-23.2-20260717-MAINLINE-waydroid_x86_64-vendor.zip
 # === WIPE + INSTALL ===
 waydroid session stop
 sudo systemctl stop waydroid-container
-rm -rf ~/.local/share/waydroid
+rm -rf ~/.local/share/waydroid    # OBLIGATORIO: data vieja = bootloop (§ 3)
+rm -rf ~/.share/waydroid ~/waydroid ~/.waydroid   # legacy, por si acaso
 sudo rm -rf /var/lib/waydroid/overlay*
 sudo mkdir -p /etc/waydroid-extra/images/
 sudo cp system.img    /etc/waydroid-extra/images/system.img

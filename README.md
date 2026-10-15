@@ -67,7 +67,7 @@ sha256sum system.img   # → 025ccb7fd784d3f312c56b331e49646b0ebf5b36324c4191eeb
 # 2) Wipe + install (cheat sheet; ver WIPE_INSTALL.md para detalle completo)
 waydroid session stop
 sudo systemctl stop waydroid-container
-rm -rf ~/.local/share/waydroid
+rm -rf ~/.local/share/waydroid    # OBLIGATORIO: data vieja = bootloop (WIPE_INSTALL.md § 3)
 sudo rm -rf /var/lib/waydroid/overlay*
 sudo mkdir -p /etc/waydroid-extra/images/
 sudo cp system.img    /etc/waydroid-extra/images/system.img
@@ -128,7 +128,11 @@ Restaura el `system.img` previo desde `/var/lib/waydroid/fakewifi-a16-backup/sys
 - Si **re-extraés `system.img` del zip original** de WayDroid-ATV 20260717 GAPPS,
   el parche se pierde: re-copiá el system.img de este repo.
 - Un `waydroid init -f` **no** borra el parche de imagen (los APEX están dentro
-  de la imagen) — pero sí borra `/data`, así que después re-ejecutá el setprop.
+  de la imagen). **Y no es un factory-reset completo**: no limpia por sí solo
+  el estado que queda en `~/.local/share/waydroid` (verificado en runtime
+  2026-10-16: con ese dir remanente el boot queda en bootloop aunque
+  re-inicies) — para un wipe real seguí `WIPE_INSTALL.md` § 3, y después
+  re-ejecutá el setprop.
 - Solo para la build 20260717 GAPPS. Los hashes stock A16 (de la imagen original,
   no de este parchado) están en `sha256sum` como gate potencial (no implementado
   en install.sh porque la entrega es la imagen entera, no una cirugía).

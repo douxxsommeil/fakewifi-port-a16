@@ -7,7 +7,7 @@
 
 ## 0. Antes de loguear: descartar causas de entorno (2 minutos)
 
-Estas 3 cosas producen EXACTAMENTE el mismo síntoma (bootloop en splash)
+Estas 4 cosas producen EXACTAMENTE el mismo síntoma (bootloop en splash)
 con una imagen perfecta, y son las más comunes:
 
 ### 0.1 Vendor.img del MISMO release
@@ -47,6 +47,36 @@ parcheada:
 sudo sha256sum /etc/waydroid-extra/images/system.img
 # debe coincidir con el sha256sum publicado en el release que instalaste
 ```
+
+### 0.4 Data de usuario remanente (`~/.local/share/waydroid`) — CONFIRMADO
+
+**Causa real del bootloop del 2026-10-16.** Con el system.img v1.1.0
+correcto, vendor 20260717 y overlays limpios, un
+`~/.local/share/waydroid` remanente (data de la instalación anterior, o
+a medio escribir por los boots abortados durante el bootloop de la
+v1.0.0) mantiene el boot en loop en la pantalla de carga: la imagen
+nunca termina de cargar.
+
+Ese directorio ES la partición `/data` de Android (`data/data.img` en
+modo imagen, `data/` en modo directorio): contiene `packages.xml`, los
+settings de system_server y la dalvik-cache de OTRO framework. Con ese
+estado debajo, system_server crash-loopea en cuanto arranca. Por eso
+"reinstalar la imagen" no arregla nada solo: mientras el /data viejo
+siga ahí, cada intento falla igual.
+
+```bash
+# Fix (factory-reset del lado del usuario — borra apps/cuentas):
+sudo systemctl stop waydroid-container; waydroid session stop
+rm -rf ~/.local/share/waydroid ~/.share/waydroid ~/waydroid ~/.waydroid
+sudo systemctl start waydroid-container
+waydroid session start &
+# después del boot, re-ejecutá el setprop (ver WIPE_INSTALL.md § 7)
+```
+
+Las rutas legacy (`~/.share/waydroid`, `~/waydroid`, `~/.waydroid`)
+normalmente no existen en waydroid 1.6.3, pero pueden quedar de
+instalaciones viejas; borrarlas no cuesta nada (guía oficial de reset:
+github.com/waydroid/waydroid/discussions/1358).
 
 ## 1. Captura de logs del bootloop
 

@@ -298,3 +298,85 @@ UUID/ts de stock, y GATE de tree-diff completo (solo los 2 APEX pueden
 diferir). Jars parcheados vendidos en prebuilt/. CI en
 .github/workflows/build.yml publica el release. Diagnóstico del host en
 DIAGNOSTICO.md (vendor 20260717, overlay limpio, sha256 de la imagen en uso).
+
+---
+
+## Sesión 3 (2026-10-16) — Runtime del usuario: bootea; el bootloop era data remanente
+
+### Reporte del usuario (runtime, host Sandy Bridge i5-2430M / 3.7 GB RAM)
+
+- Tras el wipe + instalación de las imágenes custom, el boot seguía en
+  loop en la pantalla de carga: la imagen no cargaba.
+- El fix definitivo fue borrar `~/.local/share/waydroid`: sin ese borrado
+  el bootloop persistía; con él, la imagen bootea.
+- Conclusión: **cuarta causa de entorno de bootloop** (vendor mezclado /
+  overlay viejo / init pisando imagen / **data de usuario remanente**).
+  El /data viejo (packages.xml, settings de system_server, dalvik-cache
+  de otro framework, o a medio escribir por los boots abortados de la
+  v1.0.0) hace crash-loopear system_server desde el primer boot, con el
+  mismo síntoma que una imagen rota — por eso engañó a la sesión 2.
+- La verificación del HOOK fakewifi (getprop / dumpsys wifi / logcat /
+  backup de WhatsApp) sigue pendiente de reporte.
+
+### Qué se actualizó en el repo (esta sesión)
+
+- `WIPE_INSTALL.md` § 3: warning IMPORTANT — el borrado de
+  `~/.local/share/waydroid` es OBLIGATORIO; añadidas rutas legacy
+  (`~/.share/waydroid`, `~/waydroid`, `~/.waydroid` — guía oficial de
+  reset, waydroid discussion #1358). § 9: sección nueva "Bootloop
+  persiste tras re-instalar". Cheat sheet actualizado con el paso
+  marcado OBLIGATORIO.
+- `DIAGNOSTICO.md` § 0.4: causa nueva documentada (la lista de § 0 pasó
+  de 3 a 4 causas de entorno).
+- `AGENTS.md`: estado sesión 3.
+- `README.md`: corregida la nota que decía que `waydroid init -f` "borra
+  /data" — en runtime se comprobó que NO limpia el estado problemático de
+  `~/.local/share/waydroid`; el wipe real es a mano.
+
+### Nota aparte — "waydroid se reinicia" al cambiar de escritorio virtual (KDE, host 3.7 GB RAM)
+
+Reporte del usuario: al moverse entre escritorios virtuales de KDE
+(Ctrl+Meta+Arriba), waydroid se reinicia. Sospecha del usuario: el swap.
+
+Análisis (probable, a confirmar con logs): **OOM killer del kernel**, no
+el swap en sí. Con 3.7 GB RAM, Plasma + Android 16 GAPPS no cierra
+(el container solo se come 1.5-2.5 GB). El cambio de escritorio es un
+pico de asignación: kwin re-compone TODAS las ventanas del escritorio
+destino, la animación retiene los frames de ambos escritorios, y las
+miniaturas del task manager refrescan. Sin margen libre (RAM + swap), el
+kernel dispara el OOM killer y mata al mayor consumidor: el container
+waydroid → Android re-bootea (boot animation de vuelta).
+
+El swap NO mata nada: su AUSENCIA (o estar lleno) es lo que deja pasar
+el OOM. Con swap suficiente el pico se absorbe paginando (lento pero sin
+kill). Confirmación y mitigación:
+
+```bash
+# Confirmar OOM (la evidencia queda en el ring buffer del kernel):
+sudo journalctl -k --since today | grep -iE 'out of memory|oom|killed process'
+sudo dmesg | grep -iE 'oom-kill|killed process'
+systemctl status waydroid-container      # "since" / restarts
+free -h; swapon --show                    # cuánto swap hay y cuánto queda libre
+
+# Mitigación:
+# 1) Swapfile 4G (si no hay swap suficiente):
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+# 2) zram (swap comprimido en RAM, rápido): apt install zram-tools
+#    y en /etc/default/zramswap: PERCENT=100, ALGO=zstd
+# 3) Reducir el pico: Efectos de escritorio → desactivar Overview /
+#    Desktop Grid; velocidad de animación al mínimo.
+# 4) Dentro de Android: Developer options → Background process limit →
+#    "No background processes"; animaciones off.
+```
+
+Alternativa a descartar si NO hay kills de OOM en el log del kernel:
+crash de kwin_wayland (se caería la sesión completa a SDDM) —
+`coredumpctl list kwin_wayland` y `journalctl -b | grep -iE 'i915|gpu
+hang'` (el iGPU Gen6 Sandy Bridge es frágil en kernels nuevos).
+Distinción de síntoma: si Android re-bootea COMPLETO (boot animation) =
+container muerto (OOM); si solo cierra/abre la ventana waydroid sin boot
+animation = sesión waydroid muerta (compositor/kwin).

@@ -3,6 +3,23 @@
 Si sos un agente que llega a este repo sin la conversación previa: **este archivo es tu
 punto de entrada.** Todo el contexto de la sesión de porteo vive en `vault/notes.md`.
 
+## Estado actual (actualización 2026-10-16, sesión 3 — runtime: bootea; causa de entorno confirmada)
+
+- **La imagen v1.1.0 BOOTEA en el host del usuario.** El bootloop que
+  persistía tras arreglar la imagen era de ENTORNO, no de la imagen: un
+  `~/.local/share/waydroid` remanente (la partición /data de la
+  instalación anterior / de los boots abortados de la v1.0.0). Sin borrar
+  ese dir, la imagen no carga (loop en splash); borrándolo, bootea normal.
+- Documentado en `WIPE_INSTALL.md` § 3 (borrado OBLIGATORIO del dir +
+  rutas legacy) y `DIAGNOSTICO.md` § 0.4 (cuarta causa de entorno de
+  bootloop). `vault/notes.md` sesión 3 tiene el reporte completo.
+- Verificación runtime del HOOK fakewifi (getprop / dumpsys wifi /
+  logcat / WhatsApp) aún no reportada por el usuario — sigue pendiente
+  ("Lo que falta" #1).
+- Nota de host (fuera del alcance del repo): con 3.7 GB RAM, waydroid
+  "se reinicia" bajo presión de memoria al cambiar de escritorio virtual
+  en KDE — diagnóstico OOM y mitigaciones en `vault/notes.md` sesión 3.
+
 ## Estado actual (actualización 2026-10-15, sesión 2 — bootloop v1.0.0)
 
 - El usuario reportó **bootloop** (pantalla de carga de LineageOS) con el
