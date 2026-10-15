@@ -24,8 +24,29 @@ sudo apt update && sudo apt install waydroid
 sudo /usr/bin/waydroid-updater  # o bajá el .deb de https://docs.waydro.id/
 ```
 
-Bajá este repo (lo vas a tener en `/path/a/fakewifi-port-a16/`) y
-descargá también el **vendor.img A16** desde la release 20260717
+### Descargar el system.img parchado + vendor.img
+
+El system.img se entrega en 2 chunks (por limitación de tamaño de
+asset de GitHub — un solo archivo >1.5 GB da OOM en el sandbox al
+subir). Bajá los 2 chunks desde el release v1.0.0:
+
+```bash
+# 2 chunks del system.img parchado (cat = system.img de 1.95 GB)
+wget https://github.com/douxxsommeil/fakewifi-port-a16/releases/download/v1.0.0/system.img.part0
+wget https://github.com/douxxsommeil/fakewifi-port-a16/releases/download/v1.0.0/system.img.part1
+
+# Reensamblar
+cat system.img.part0 system.img.part1 > system.img
+
+# Verificar integridad (debe dar 025ccb7fd784d3f312c56b331e49646b0ebf5b36324c4191eeb0adba8bf81474)
+sha256sum system.img
+# → 025ccb7fd784d3f312c56b331e49646b0ebf5b36324c4191eeb0adba8bf81474  system.img
+
+# Opcional: borrar los chunks
+rm system.img.part0 system.img.part1
+```
+
+Y descargá el **vendor.img A16** desde la release upstream 20260717
 (fakewifi no toca vendor, así que se usa el stock):
 
 ```bash
@@ -287,14 +308,23 @@ sudo waydroid shell setprop persist.waydroid.fake_wifi '*'
 ## Resumen rápido (cheat sheet)
 
 ```bash
-# === WIPE + INSTALL en 6 comandos ===
+# === DESCARGA (one-time) ===
+wget https://github.com/douxxsommeil/fakewifi-port-a16/releases/download/v1.0.0/system.img.part0
+wget https://github.com/douxxsommeil/fakewifi-port-a16/releases/download/v1.0.0/system.img.part1
+cat system.img.part0 system.img.part1 > system.img
+sha256sum system.img   # → 025ccb7fd784d3f312c56b331e49646b0ebf5b36324c4191eeb0adba8bf81474
+
+wget https://github.com/WayDroid-ATV/waydroid-builds/releases/download/20260717/lineage-23.2-20260717-MAINLINE-waydroid_x86_64-vendor.zip
+unzip lineage-23.2-20260717-MAINLINE-waydroid_x86_64-vendor.zip
+
+# === WIPE + INSTALL ===
 waydroid session stop
 sudo systemctl stop waydroid-container
 rm -rf ~/.local/share/waydroid
 sudo rm -rf /var/lib/waydroid/overlay*
 sudo mkdir -p /etc/waydroid-extra/images/
-sudo cp /path/a/fakewifi-port-a16/system.img    /etc/waydroid-extra/images/system.img
-sudo cp /path/a/vendor.img                       /etc/waydroid-extra/images/vendor.img
+sudo cp system.img    /etc/waydroid-extra/images/system.img
+sudo cp vendor.img   /etc/waydroid-extra/images/vendor.img
 sudo waydroid init -f
 sudo systemctl start waydroid-container
 waydroid session start &

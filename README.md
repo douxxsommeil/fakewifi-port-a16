@@ -41,23 +41,46 @@ sí trae estos parches, al A14 primero y ahora al A16).
 
 ## Instalación rápida
 
+> **Primera vez** (o si venís del A14 con fakewifi y querés empezar limpio):
+> leé [`WIPE_INSTALL.md`](WIPE_INSTALL.md) — guía paso a paso con el wipe
+> completo, instalación en formato custom (imágenes en
+> `/etc/waydroid-extra/images/`), y verificación runtime.
+
 ```bash
-# 1) Pará waydroid y respalda tu imagen actual (lo hace el script)
+# 1) Descargar el system.img parchado (2 chunks) + vendor.img A16 stock
+#    (ver WIPE_INSTALL.md § "0. Requisitos previos" para URLs exactas)
+wget https://github.com/douxxsommeil/fakewifi-port-a16/releases/download/v1.0.0/system.img.part0
+wget https://github.com/douxxsommeil/fakewifi-port-a16/releases/download/v1.0.0/system.img.part1
+cat system.img.part0 system.img.part1 > system.img
+sha256sum system.img   # → 025ccb7fd784d3f312c56b331e49646b0ebf5b36324c4191eeb0adba8bf81474
+
+# 2) Wipe + install (cheat sheet; ver WIPE_INSTALL.md para detalle completo)
+waydroid session stop
+sudo systemctl stop waydroid-container
+rm -rf ~/.local/share/waydroid
+sudo rm -rf /var/lib/waydroid/overlay*
+sudo mkdir -p /etc/waydroid-extra/images/
+sudo cp system.img    /etc/waydroid-extra/images/system.img
+sudo cp vendor.img   /etc/waydroid-extra/images/vendor.img   # del release upstream A16
+sudo waydroid init -f
+sudo systemctl start waydroid-container
+waydroid session start &
+sleep 90 && sudo waydroid shell setprop persist.waydroid.fake_wifi '*'
+
+# Si ya tenés waydroid A16 instalado y solo querés intercambiar el system.img
+# por el parchado (sin wipe, preservando tu /data):
 sudo bash install.sh
 
-# 2) Si querés restringir el fake wifi a un solo paquete (default: '*' = todos):
-sudo bash install.sh --prop='com.whatsapp'
-sudo bash install.sh --prop='com.whatsapp,com.google.*'
-
-# 3) Para revertir (copia el backup pre-parche):
+# Para revertir (copia el backup pre-parche):
 sudo bash install.sh --restore
 ```
 
 **Prerrequisito**: tenés que tener WayDroid-ATV A16 (20260717 GAPPS) ya
-configurado con `sudo waydroid init`. La imagen `system.img` que entrega este repo
-reemplaza el `system.img` stock — por eso solo funciona con la build 20260717
-GAPPS. No uses este system.img sobre A14/A15 ni sobre VANILLA A16 (tamaño y
-metadata distintos).
+configurado con `sudo waydroid init` y waydroid host ≥ 1.6.3 (release
+A16 lo exige explícitamente: *"requires Waydroid version 1.6.3 or
+later"*). La imagen `system.img` que entrega este repo reemplaza el
+`system.img` stock — por eso solo funciona con la build 20260717
+GAPPS. No uses este system.img sobre A14/A15 ni sobre VANILLA A16.
 
 ## Post-install: activar la prop
 
