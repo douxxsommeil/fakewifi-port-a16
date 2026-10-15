@@ -377,7 +377,7 @@ def main():
         bad = []
         for line in r.stdout.splitlines():
             if line.startswith("  C "):
-                path = line[4:].strip()
+                path = line[4:].strip().split()[0]
                 if not path.endswith(("com.android.wifi.apex", "com.android.tethering.apex")):
                     bad.append(path)
         if "CONTENT diffs: 2" not in r.stdout or bad:

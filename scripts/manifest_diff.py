@@ -6,8 +6,8 @@ Exit code 0 always; prints a report. The caller parses the report.
 import sys
 
 IDX = {
-    "file": {"hash": 2, "mode": 3, "uid": 4, "gid": 5, "size": 6, "selinux": 7, "caps": 8},
-    "link": {"target": 2, "uid": 3, "gid": 4},
+    "file": {"mode": 2, "uid": 3, "gid": 4, "size": 5, "selinux": 6, "caps": 7},
+    "link": {"uid": 2, "gid": 3},
     "dir": {"mode": 2, "uid": 3, "gid": 4, "selinux": 5},
     "special": {"mode": 2},
 }
@@ -38,11 +38,11 @@ def main():
             continue
         kind = a[0]
         keys = IDX.get(kind, {})
-        if kind == "file" and a[2] != b[2]:
-            content_diff.append((rel, a[2][:16], b[2][:16]))
+        if kind == "file" and a[1] != b[1]:
+            content_diff.append((rel, a[1][:16], b[1][:16]))
             continue
-        if kind == "link" and a[2] != b[2]:
-            content_diff.append((rel, a[2], b[2]))
+        if kind == "link" and a[1] != b[1]:
+            content_diff.append((rel, a[1], b[1]))
             continue
         diffs = [f"{k}:{a[i]}!={b[i]}" for k, i in keys.items() if len(a) > i and len(b) > i and a[i] != b[i]]
         if diffs:
