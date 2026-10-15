@@ -1,0 +1,12 @@
+# Large binaries — distributed as GitHub release assets, not in git tree.
+# Reason: GitHub git hard limit is 100MB per file; system.img is 1.95GB.
+# All checksums in sha256sum so users can verify integrity after download.
+system.img
+apexes-new/
+*.unsigned
+*.aligned
+*.work
+*.orig
+__pycache__/
+*.pyc
+.DS_Store
